@@ -1,0 +1,43 @@
+import pandas as pd
+from sklearn.preprocessing import StandardScaler 
+from sklearn.ensemble import IsolationForest
+import dash
+from dash import dcc, html
+import plotly.express as px
+
+data = pd.read_csv('path to your csv')
+data.fillna(method='ffill', inplace=True)
+features =['l_ipn', 'r_asn', 'f']
+x = data[features]
+
+scaler = StandardScaler()
+x_scaled = scaler.fit_transform(x)
+
+iso_forest = IsolationForest(contamination=0.01, random_state = 42)
+data['anomaly'] = iso_forest.fit_predict(x_scaled)
+
+data['anomaly_label'] = data['anomaly'].map({1: 'Normal', -1:'Anomalous'})
+normal_data = data[data['anomaly_label'] == 'Normal']
+anomaly_data = data[data['anomaly_label'] == 'Anomalous']
+
+fig = px.scatter(normal_data, x='r_asn', y='f', title='Normal vs Anomalous Traffic',
+                 color_discrete_sequence=['blue'], opacity=0.6, labels={"x": "Remote ASN", "y": "Frequency"})
+fig.add_scatter(x=anomaly_data['r_asn'], y=anomaly_data['f'],
+                mode='markers', marker=dict(color='red'), name='Anomalies')
+
+app = dash.Dash(__name__)
+
+app.layout = html.Div([
+    html.H1("Network Traffic Anomaly Detection Dashboard", style={'textAlign': 'center'}),
+    dcc.Graph(figure=fig), 
+    html.Div([
+        html.H3("Summary of Detected Anomalies"),
+        html.P(f"Total records: {len(data)}"),
+        html.P(f"Normal Traffic: {len(normal_data)}"),
+        html.P(f"Anomalous Traffic: {len(anomaly_data)}")
+    ], style={'textAlign': 'center'})
+])
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
+
